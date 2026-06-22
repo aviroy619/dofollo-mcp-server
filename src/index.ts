@@ -21,6 +21,10 @@ const protectedResourceMetadata = {
 const wwwAuthenticateHeader =
   'Bearer realm="OAuth", resource_metadata="https://mcp.dofollo.ai/.well-known/oauth-protected-resource/mcp"';
 
+type TokenClaims = {
+  sub?: string;
+} & Record<string, unknown>;
+
 /** Pull the OAuth bearer token from the incoming request. */
 function extractBearerToken(req: Request): string | undefined {
   const auth = req.headers.authorization;
@@ -32,10 +36,39 @@ function extractBearerToken(req: Request): string | undefined {
   return match?.[1]?.trim() || undefined;
 }
 
-/** Build a fresh MCP server bound to the configured upstream Dofollo token. */
-function buildServer(token: string): McpServer {
+/** Decode the payload portion of a JWT so we can fall back to `sub` if needed. */
+function decodeJwtPayload(token: string): Record<string, unknown> | undefined {
+  const [, payload] = token.split(".");
+  if (!payload) {
+    return undefined;
+  }
+
+  const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
+
+  try {
+    const parsed = JSON.parse(Buffer.from(normalized + padding, "base64").toString("utf8"));
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function getDofolloUserId(token: string, claims: unknown): string | undefined {
+  const subject =
+    claims && typeof claims === "object" && "sub" in claims ? (claims as TokenClaims).sub : undefined;
+  if (typeof subject === "string" && subject.trim()) {
+    return subject.trim();
+  }
+
+  const fallbackSub = decodeJwtPayload(token)?.sub;
+  return typeof fallbackSub === "string" && fallbackSub.trim() ? fallbackSub.trim() : undefined;
+}
+
+/** Build a fresh MCP server bound to the authenticated Dofollo user id. */
+function buildServer(dofolloUserId: string): McpServer {
   const server = new McpServer({ name: "dofollo-mcp-server", version: "1.0.0" });
-  registerTools(server, token);
+  registerTools(server, dofolloUserId);
   return server;
 }
 
@@ -69,8 +102,9 @@ app.post("/mcp", async (req: Request, res: Response) => {
     return;
   }
 
+  let claims: TokenClaims | boolean;
   try {
-    await scalekit.validateToken(token, {
+    claims = await scalekit.validateToken<TokenClaims | boolean>(token, {
       audience: [process.env.MCP_RESOURCE!],
     });
   } catch {
@@ -78,7 +112,13 @@ app.post("/mcp", async (req: Request, res: Response) => {
     return;
   }
 
-  const server = buildServer(process.env.DOFOLLO_API_TOKEN!);
+  const dofolloUserId = getDofolloUserId(token, claims);
+  if (!dofolloUserId) {
+    sendUnauthorized(res);
+    return;
+  }
+
+  const server = buildServer(dofolloUserId);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

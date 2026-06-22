@@ -12,12 +12,12 @@ type QueryValue = string | number | boolean | undefined | null;
 type Query = Record<string, QueryValue>;
 
 /**
- * GET a Dofollo MCP endpoint, forwarding the caller's account token.
+ * GET a Dofollo MCP endpoint, authenticating as an internal service on behalf of one user.
  * Unwraps the `{ success, data, message }` response envelope and returns `data`.
  */
 export async function dofolloGet<T = unknown>(
   path: string,
-  token: string,
+  dofolloUserId: string,
   query?: Query,
 ): Promise<T> {
   const url = new URL(API_BASE + MCP_PREFIX + path);
@@ -34,8 +34,9 @@ export async function dofolloGet<T = unknown>(
     resp = await fetch(url, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${token}`,
         Accept: "application/json",
+        "X-Dofollo-User-Id": dofolloUserId,
+        "X-Internal-Service-Secret": process.env.INTERNAL_SERVICE_SECRET!,
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -60,13 +61,13 @@ export async function dofolloGet<T = unknown>(
     if (resp.status === 401) {
       throw new DofolloError(
         401,
-        "unauthorized — the Dofollo token is missing, invalid, or revoked. Re-create it in Dofollo settings and reconnect.",
+        "unauthorized - the Dofollo user mapping or internal service authentication was rejected.",
       );
     }
     if (resp.status === 403 || resp.status === 404) {
       throw new DofolloError(
         resp.status,
-        `not accessible with this token — the site may not belong to this account (${apiMsg}).`,
+        `not accessible for this user - the site may not belong to them (${apiMsg}).`,
       );
     }
     throw new DofolloError(resp.status, String(apiMsg));

@@ -45,8 +45,8 @@ const readOnly = {
   openWorldHint: true,
 } as const;
 
-/** Register every Dofollo tool on the given server, bound to the caller's token. */
-export function registerTools(server: McpServer, token: string): void {
+/** Register every Dofollo tool on the given server, bound to the caller's Dofollo user id. */
+export function registerTools(server: McpServer, dofolloUserId: string): void {
   server.registerTool(
     "dofollo_list_sites",
     {
@@ -61,7 +61,7 @@ Returns: an array of sites, each including at least an id and url/domain plus su
     },
     async () => {
       try {
-        return ok(await dofolloGet("/sites", token));
+        return ok(await dofolloGet("/sites", dofolloUserId));
       } catch (err) {
         return fail(err);
       }
@@ -86,7 +86,10 @@ Returns: prioritized pages with priority scores and the issues driving each scor
     async ({ site_id }) => {
       try {
         return ok(
-          await dofolloGet(`/sites/${encodeURIComponent(site_id)}/analysis-priority`, token),
+          await dofolloGet(
+            `/sites/${encodeURIComponent(site_id)}/analysis-priority`,
+            dofolloUserId,
+          ),
         );
       } catch (err) {
         return fail(err);
@@ -120,7 +123,7 @@ Returns: an array of issues with type, severity, affected URL, and status.`,
     async ({ site_id, status, type, limit, offset }) => {
       try {
         return ok(
-          await dofolloGet(`/sites/${encodeURIComponent(site_id)}/issues`, token, {
+          await dofolloGet(`/sites/${encodeURIComponent(site_id)}/issues`, dofolloUserId, {
             status,
             type,
             limit,
@@ -152,7 +155,9 @@ Returns: the audit findings for that category — affected pages and details.`,
     },
     async ({ site_id, type }) => {
       try {
-        return ok(await dofolloGet(`/sites/${encodeURIComponent(site_id)}/audit/${type}`, token));
+        return ok(
+          await dofolloGet(`/sites/${encodeURIComponent(site_id)}/audit/${type}`, dofolloUserId),
+        );
       } catch (err) {
         return fail(err);
       }
@@ -181,7 +186,10 @@ Returns: crawled pages with URL and per-page metadata.`,
     async ({ site_id, limit, offset }) => {
       try {
         return ok(
-          await dofolloGet(`/sites/${encodeURIComponent(site_id)}/pages`, token, { limit, offset }),
+          await dofolloGet(`/sites/${encodeURIComponent(site_id)}/pages`, dofolloUserId, {
+            limit,
+            offset,
+          }),
         );
       } catch (err) {
         return fail(err);
@@ -211,7 +219,7 @@ Returns: detailed issues, content signals, and fix status for that page.`,
     async ({ site_id, url, page_id }) => {
       try {
         return ok(
-          await dofolloGet(`/sites/${encodeURIComponent(site_id)}/pages/detail`, token, {
+          await dofolloGet(`/sites/${encodeURIComponent(site_id)}/pages/detail`, dofolloUserId, {
             url,
             page_id,
           }),
@@ -244,10 +252,14 @@ Returns: GSC performance metrics. If GSC is not connected for the site, the API 
     async ({ site_id, start_date, end_date }) => {
       try {
         return ok(
-          await dofolloGet(`/sites/${encodeURIComponent(site_id)}/gsc/performance`, token, {
-            start_date,
-            end_date,
-          }),
+          await dofolloGet(
+            `/sites/${encodeURIComponent(site_id)}/gsc/performance`,
+            dofolloUserId,
+            {
+              start_date,
+              end_date,
+            },
+          ),
         );
       } catch (err) {
         return fail(err);
