@@ -14,12 +14,12 @@ const protectedResourceMetadata = {
   authorization_servers: ["https://dofollo.scalekit.dev/resources/res_130805237014331910"],
   bearer_methods_supported: ["header"],
   resource: process.env.MCP_RESOURCE!,
-  resource_documentation: "https://mcp.dofollo.ai/mcp/docs",
+  resource_documentation: "https://mcp.rankmerabbit.com/mcp/docs",
   scopes_supported: [] as string[],
 };
 
 const wwwAuthenticateHeader =
-  'Bearer realm="OAuth", resource_metadata="https://mcp.dofollo.ai/.well-known/oauth-protected-resource/mcp"';
+  'Bearer realm="OAuth", resource_metadata="https://mcp.rankmerabbit.com/.well-known/oauth-protected-resource/mcp"';
 
 type TokenClaims = {
   sub?: string;
