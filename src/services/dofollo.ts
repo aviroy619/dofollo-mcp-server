@@ -1,6 +1,6 @@
 import { API_BASE, MCP_PREFIX, REQUEST_TIMEOUT_MS } from "../constants.js";
 
-/** Error from the Dofollo API, carrying the HTTP status for actionable messaging. */
+/** Error from the RankMeRabbit API, carrying the HTTP status for actionable messaging. */
 export class DofolloError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
@@ -12,7 +12,7 @@ type QueryValue = string | number | boolean | undefined | null;
 type Query = Record<string, QueryValue>;
 
 /**
- * GET a Dofollo MCP endpoint, authenticating as an internal service on behalf of one user.
+ * GET a RankMeRabbit MCP endpoint, authenticating as an internal service on behalf of one user.
  * Unwraps the `{ success, data, message }` response envelope and returns `data`.
  */
 export async function dofolloGet<T = unknown>(
@@ -61,7 +61,7 @@ export async function dofolloGet<T = unknown>(
     if (resp.status === 401) {
       throw new DofolloError(
         401,
-        "unauthorized - the Dofollo user mapping or internal service authentication was rejected.",
+        "unauthorized - the RankMeRabbit user mapping or internal service authentication was rejected.",
       );
     }
     if (resp.status === 403 || resp.status === 404) {

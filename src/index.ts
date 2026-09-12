@@ -65,9 +65,9 @@ function getDofolloUserId(token: string, claims: unknown): string | undefined {
   return typeof fallbackSub === "string" && fallbackSub.trim() ? fallbackSub.trim() : undefined;
 }
 
-/** Build a fresh MCP server bound to the authenticated Dofollo user id. */
+/** Build a fresh MCP server bound to the authenticated RankMeRabbit user id. */
 function buildServer(dofolloUserId: string): McpServer {
-  const server = new McpServer({ name: "dofollo-mcp-server", version: "1.0.0" });
+  const server = new McpServer({ name: "rankmerabbit-mcp-server", version: "1.0.0" });
   registerTools(server, dofolloUserId);
   return server;
 }
@@ -153,5 +153,5 @@ app.delete("/mcp", (_req: Request, res: Response) => {
 
 const port = parseInt(process.env.PORT || "3000", 10);
 app.listen(port, () => {
-  console.error(`dofollo-mcp-server listening on :${port}/mcp`);
+  console.error(`rankmerabbit-mcp-server listening on :${port}/mcp`);
 });

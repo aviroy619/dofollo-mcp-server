@@ -45,13 +45,13 @@ const readOnly = {
   openWorldHint: true,
 } as const;
 
-/** Register every Dofollo tool on the given server, bound to the caller's Dofollo user id. */
+/** Register every RankMeRabbit tool on the given server, bound to the caller's RankMeRabbit user id. */
 export function registerTools(server: McpServer, dofolloUserId: string): void {
   server.registerTool(
-    "dofollo_list_sites",
+    "rankmerabbit_list_sites",
     {
-      title: "List Dofollo sites",
-      description: `List all sites the authenticated Dofollo account owns. Start here to obtain the site_id values required by every other tool.
+      title: "List RankMeRabbit sites",
+      description: `List all sites the authenticated RankMeRabbit account owns. Start here to obtain the site_id values required by every other tool.
 
 Args: none.
 
@@ -69,17 +69,17 @@ Returns: an array of sites, each including at least an id and url/domain plus su
   );
 
   server.registerTool(
-    "dofollo_pages_needing_work",
+    "rankmerabbit_pages_needing_work",
     {
       title: "Pages needing work",
-      description: `Get the prioritized list of pages that most need SEO work for a site, ranked by Dofollo's analysis-priority scoring. This is the tool to use for "which pages need work?".
+      description: `Get the prioritized list of pages that most need SEO work for a site, ranked by RankMeRabbit's analysis-priority scoring. This is the tool to use for "which pages need work?".
 
 Args:
-  - site_id (string): a site id from dofollo_list_sites
+  - site_id (string): a site id from rankmerabbit_list_sites
 
 Returns: prioritized pages with priority scores and the issues driving each score.`,
       inputSchema: {
-        site_id: z.string().min(1).describe("Site id from dofollo_list_sites"),
+        site_id: z.string().min(1).describe("Site id from rankmerabbit_list_sites"),
       },
       annotations: readOnly,
     },
@@ -98,7 +98,7 @@ Returns: prioritized pages with priority scores and the issues driving each scor
   );
 
   server.registerTool(
-    "dofollo_list_issues",
+    "rankmerabbit_list_issues",
     {
       title: "List SEO issues",
       description: `List detected SEO issues for a site, with optional filtering and pagination.
@@ -137,7 +137,7 @@ Returns: an array of issues with type, severity, affected URL, and status.`,
   );
 
   server.registerTool(
-    "dofollo_get_audit",
+    "rankmerabbit_get_audit",
     {
       title: "Get a specific audit",
       description: `Get a focused audit report for a site by category.
@@ -165,7 +165,7 @@ Returns: the audit findings for that category — affected pages and details.`,
   );
 
   server.registerTool(
-    "dofollo_list_pages",
+    "rankmerabbit_list_pages",
     {
       title: "List pages",
       description: `List crawled pages for a site, with optional pagination.
@@ -198,7 +198,7 @@ Returns: crawled pages with URL and per-page metadata.`,
   );
 
   server.registerTool(
-    "dofollo_get_page_detail",
+    "rankmerabbit_get_page_detail",
     {
       title: "Get page detail",
       description: `Get the full audit detail for a single page. Provide the page url, and/or the page_id if known.
@@ -231,7 +231,7 @@ Returns: detailed issues, content signals, and fix status for that page.`,
   );
 
   server.registerTool(
-    "dofollo_gsc_performance",
+    "rankmerabbit_gsc_performance",
     {
       title: "Search Console performance",
       description: `Get Google Search Console performance for a site (clicks, impressions, average position) when GSC is connected.
