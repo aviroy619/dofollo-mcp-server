@@ -10,6 +10,7 @@ export class DofolloError extends Error {
 
 type QueryValue = string | number | boolean | undefined | null;
 type Query = Record<string, QueryValue>;
+type Body = Record<string, unknown>;
 
 /**
  * GET a RankMeRabbit MCP endpoint, authenticating as an internal service on behalf of one user.
@@ -70,6 +71,59 @@ export async function dofolloGet<T = unknown>(
         `not accessible for this user - the site may not belong to them (${apiMsg}).`,
       );
     }
+    throw new DofolloError(resp.status, String(apiMsg));
+  }
+
+  if (json && typeof json === "object" && "data" in (json as Record<string, unknown>)) {
+    return (json as { data: T }).data;
+  }
+  return json as T;
+}
+
+export async function dofolloPost<T = unknown>(
+  path: string,
+  dofolloUserId: string,
+  body?: Body,
+  query?: Query,
+): Promise<T> {
+  const url = new URL(API_BASE + MCP_PREFIX + path);
+  if (query) {
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, String(value));
+      }
+    }
+  }
+
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Dofollo-User-Id": dofolloUserId,
+        "X-Internal-Service-Secret": process.env.INTERNAL_SERVICE_SECRET!,
+      },
+      body: JSON.stringify(body ?? {}),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw new DofolloError(0, `network error calling ${path}: ${(err as Error).message}`);
+  }
+
+  const raw = await resp.text();
+  let json: unknown = null;
+  try {
+    json = raw ? JSON.parse(raw) : null;
+  } catch {}
+
+  if (!resp.ok) {
+    const apiMsg =
+      (json as { error?: string; message?: string } | null)?.error ??
+      (json as { error?: string; message?: string } | null)?.message ??
+      raw ??
+      resp.statusText;
     throw new DofolloError(resp.status, String(apiMsg));
   }
 

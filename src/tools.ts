@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { dofolloGet, DofolloError } from "./services/dofollo.js";
+import { dofolloGet, dofolloPost, DofolloError } from "./services/dofollo.js";
 import { CHARACTER_LIMIT } from "./constants.js";
 
 type ToolResult = {
@@ -45,8 +45,64 @@ const readOnly = {
   openWorldHint: true,
 } as const;
 
+const writeTool = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
+
+const publishingWriteTool = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
+
+const destructiveWriteTool = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
+
+function requireWrite(canWrite: boolean): ToolResult | undefined {
+  if (canWrite) {
+    return undefined;
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text: "Error 403: this OAuth token is missing the rankmerabbit.write scope.",
+      },
+    ],
+    isError: true,
+  };
+}
+
+const PROPOSAL_ACTION_TYPES = ["broken_link", "h1", "alt_text"] as const;
+
+function proposalResult(status: string | undefined): string {
+  switch (status) {
+    case "approved":
+    case "rollback_pending":
+      return "queued";
+    case "applied":
+      return "published";
+    case "rolled_back":
+      return "reverted";
+    case "failed":
+      return "failed";
+    case "proposed":
+      return "proposed";
+    default:
+      return status || "failed";
+  }
+}
+
 /** Register every RankMeRabbit tool on the given server, bound to the caller's RankMeRabbit user id. */
-export function registerTools(server: McpServer, dofolloUserId: string): void {
+export function registerTools(server: McpServer, dofolloUserId: string, canWrite = false): void {
   server.registerTool(
     "rankmerabbit_list_sites",
     {
@@ -261,6 +317,193 @@ Returns: GSC performance metrics. If GSC is not connected for the site, the API 
             },
           ),
         );
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "rankmerabbit_ensure_fix_session",
+    {
+      title: "Ensure fix session",
+      description: `Create or validate an owned RankMeRabbit chat session for MCP fix proposals.
+
+Args:
+  - site_id (string): site id
+  - session_id (string, optional): existing session to validate
+
+Returns: { session_id, created }`,
+      inputSchema: {
+        site_id: z.string().min(1),
+        session_id: z.string().optional(),
+      },
+      annotations: writeTool,
+    },
+    async ({ site_id, session_id }) => {
+      const denied = requireWrite(canWrite);
+      if (denied) return denied;
+      try {
+        return ok(
+          await dofolloPost(
+            `/sites/${encodeURIComponent(site_id)}/fix-actions/session`,
+            dofolloUserId,
+            { site_id, session_id },
+          ),
+        );
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "rankmerabbit_generate_fix_proposal",
+    {
+      title: "Generate a fix proposal",
+      description: `Validate and store a proposed fix for explicit later review. This does not publish.
+
+Supported action_type values: broken_link, h1, alt_text.
+
+Args:
+  - site_id (string): site id
+  - session_id (string): existing RankMeRabbit chat session id
+  - action_type (enum): broken_link | h1 | alt_text
+  - page_url (string): affected page URL
+  - new_value (string): proposed replacement value
+  - broken_url (string, required for broken_link): URL being replaced
+  - image_src (string, required for alt_text): image URL/source
+
+Returns: { result: "proposed" | "failed", proposal_id, action }`,
+      inputSchema: {
+        site_id: z.string().min(1),
+        session_id: z.string().min(1),
+        action_type: z.enum(PROPOSAL_ACTION_TYPES),
+        page_url: z.string().min(1),
+        new_value: z.string().min(1),
+        broken_url: z.string().optional(),
+        image_src: z.string().optional(),
+      },
+      annotations: writeTool,
+    },
+    async ({ site_id, session_id, action_type, page_url, new_value, broken_url, image_src }) => {
+      const denied = requireWrite(canWrite);
+      if (denied) return denied;
+      try {
+        const data = await dofolloPost<{ action?: { id?: string; status?: string } }>(
+          `/sites/${encodeURIComponent(site_id)}/fix-actions`,
+          dofolloUserId,
+          { site_id, session_id, action_type, page_url, new_value, broken_url, image_src },
+        );
+        return ok({ result: proposalResult(data.action?.status), proposal_id: data.action?.id, ...data });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "rankmerabbit_get_fix_proposal",
+    {
+      title: "Retrieve a fix proposal",
+      description: `Retrieve proposed fix actions for review. Provide site_id and proposal_id; the MCP server filters the authenticated user's proposals for that site.
+
+Args:
+  - site_id (string): site id
+  - proposal_id (string): proposal/action id
+
+Returns: { result: "proposed" | "published" | "failed", proposal } or a not-found error.`,
+      inputSchema: {
+        site_id: z.string().min(1),
+        proposal_id: z.string().min(1),
+      },
+      annotations: readOnly,
+    },
+    async ({ site_id, proposal_id }) => {
+      try {
+        const data = await dofolloGet<{ actions?: Array<{ id?: string; status?: string }> }>(
+          `/sites/${encodeURIComponent(site_id)}/fix-actions`,
+          dofolloUserId,
+          { site_id },
+        );
+        const proposal = data.actions?.find((action) => action.id === proposal_id);
+        if (!proposal) {
+          throw new DofolloError(404, "fix proposal not found for this site");
+        }
+        return ok({ result: proposalResult(proposal.status), proposal });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "rankmerabbit_publish_selected_fix",
+    {
+      title: "Publish selected fix",
+      description: `Publish an explicitly selected proposal. This never generates a fix.
+
+For proposal_id, supported proposals are broken_link, h1, and alt_text chat fix actions.
+Lifecycle fix_id publishing is not exposed because the existing MCP-safe selected-fix backend route with retry-safe credit handling does not exist yet.
+
+Args:
+  - site_id (string): site id
+  - proposal_id (string): proposal/action id to approve and apply/queue
+
+Returns: { result: "queued" | "published" | "failed", ... }`,
+      inputSchema: {
+        site_id: z.string().min(1),
+        proposal_id: z.string().min(1),
+      },
+      annotations: publishingWriteTool,
+    },
+    async ({ site_id, proposal_id }) => {
+      const denied = requireWrite(canWrite);
+      if (denied) return denied;
+      try {
+        const data = await dofolloPost<{ action?: { id?: string; status?: string } }>(
+          `/sites/${encodeURIComponent(site_id)}/fix-actions/${encodeURIComponent(proposal_id)}/publish`,
+          dofolloUserId,
+          {},
+          { site_id },
+        );
+        return ok({ result: proposalResult(data.action?.status), proposal_id, ...data });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "rankmerabbit_revert_published_fix",
+    {
+      title: "Revert a published fix",
+      description: `Revert a published MCP proposal only where the existing backend rollback workflow supports it.
+
+Supported: proposal_id for broken_link, h1, and alt_text chat fix actions after they are applied and have a previous value. Lifecycle unpublish/revert is not exposed here because those paths do not all revert live content.
+
+Args:
+  - site_id (string): site id
+  - proposal_id (string): applied proposal/action id
+
+Returns: { result: "reverted" | "failed" | "unsupported", proposal_id, action }`,
+      inputSchema: {
+        site_id: z.string().min(1),
+        proposal_id: z.string().min(1),
+      },
+      annotations: destructiveWriteTool,
+    },
+    async ({ site_id, proposal_id }) => {
+      const denied = requireWrite(canWrite);
+      if (denied) return denied;
+      try {
+        const data = await dofolloPost<{ action?: { id?: string; status?: string } }>(
+          `/sites/${encodeURIComponent(site_id)}/fix-actions/${encodeURIComponent(proposal_id)}/revert`,
+          dofolloUserId,
+          {},
+          { site_id },
+        );
+        return ok({ result: proposalResult(data.action?.status), proposal_id, ...data });
       } catch (err) {
         return fail(err);
       }

@@ -15,7 +15,7 @@ const protectedResourceMetadata = {
   bearer_methods_supported: ["header"],
   resource: process.env.MCP_RESOURCE!,
   resource_documentation: "https://mcp.rankmerabbit.com/mcp/docs",
-  scopes_supported: [] as string[],
+  scopes_supported: ["rankmerabbit.read", "rankmerabbit.write"],
 };
 
 const wwwAuthenticateHeader =
@@ -23,6 +23,8 @@ const wwwAuthenticateHeader =
 
 type TokenClaims = {
   sub?: string;
+  scope?: string;
+  scp?: string[] | string;
 } & Record<string, unknown>;
 
 /** Pull the OAuth bearer token from the incoming request. */
@@ -55,20 +57,31 @@ function decodeJwtPayload(token: string): Record<string, unknown> | undefined {
 }
 
 function getDofolloUserId(token: string, claims: unknown): string | undefined {
+  if (!claims || typeof claims !== "object") {
+    return undefined;
+  }
+
   const subject =
     claims && typeof claims === "object" && "sub" in claims ? (claims as TokenClaims).sub : undefined;
   if (typeof subject === "string" && subject.trim()) {
     return subject.trim();
   }
-
-  const fallbackSub = decodeJwtPayload(token)?.sub;
-  return typeof fallbackSub === "string" && fallbackSub.trim() ? fallbackSub.trim() : undefined;
+  return undefined;
 }
 
 /** Build a fresh MCP server bound to the authenticated RankMeRabbit user id. */
-function buildServer(dofolloUserId: string): McpServer {
+function claimsHaveWriteScope(claims: TokenClaims | boolean): boolean {
+  if (!claims || typeof claims !== "object") {
+    return false;
+  }
+  const scope = typeof claims.scope === "string" ? claims.scope.split(/\s+/) : [];
+  const scp = Array.isArray(claims.scp) ? claims.scp : typeof claims.scp === "string" ? claims.scp.split(/\s+/) : [];
+  return new Set([...scope, ...scp]).has("rankmerabbit.write");
+}
+
+function buildServer(dofolloUserId: string, canWrite: boolean): McpServer {
   const server = new McpServer({ name: "rankmerabbit-mcp-server", version: "1.0.0" });
-  registerTools(server, dofolloUserId);
+  registerTools(server, dofolloUserId, canWrite);
   return server;
 }
 
@@ -118,7 +131,7 @@ app.post("/mcp", async (req: Request, res: Response) => {
     return;
   }
 
-  const server = buildServer(dofolloUserId);
+  const server = buildServer(dofolloUserId, claimsHaveWriteScope(claims));
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
