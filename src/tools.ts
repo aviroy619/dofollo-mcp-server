@@ -257,7 +257,7 @@ Returns: crawled pages with URL and per-page metadata.`,
     "rankmerabbit_get_page_detail",
     {
       title: "Get page detail",
-      description: `Get the full audit detail for a single page. Provide the page url, and/or the page_id if known.
+      description: `Get detailed/raw RankMeRabbit page fields for a single page. Prefer rankmerabbit_get_page_context when you only need enough information to reason about one page; use this tool when detailed page fields are specifically required. Provide the page url, and/or the page_id if known.
 
 Args:
   - site_id (string): site id
@@ -286,6 +286,67 @@ Returns: detailed issues, content signals, and fix status for that page.`,
     },
   );
 
+  server.registerTool(
+    "rankmerabbit_get_site_overview",
+    {
+      title: "Get site overview",
+      description: `Get a compact high-level understanding of what a RankMeRabbit website is about. Use this as lightweight background context when the current SEO task requires understanding the business/site.
+
+This intentionally returns only limited general context such as homepage evidence, a small set of primary topics and a few important pages. It does not expose RankMeRabbit's complete site analysis.
+
+Request more specific page, issue, link, GSC or topical context only when needed for the current task.
+
+If RankMeRabbit's stored context is insufficient, incomplete or potentially stale and live web access is available, inspect the live website/web rather than assuming facts.`,
+      inputSchema: {
+        site_id: z.string().min(1).describe("Site id"),
+      },
+      annotations: readOnly,
+    },
+    async ({ site_id }) => {
+      try {
+        return ok(
+          await dofolloGet(
+            `/sites/${encodeURIComponent(site_id)}/context/overview`,
+            dofolloUserId,
+          ),
+        );
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "rankmerabbit_get_page_context",
+    {
+      title: "Get page context",
+      description: `Get compact SEO context for one specific page. Use this when the current question concerns that page.
+
+It returns a limited set of page signals, relevant pending issues, a short content excerpt, and a few related pages. It intentionally does not return the complete site dataset or full page HTML/content.
+
+Request other RankMeRabbit data only if needed for the current task.
+
+If stored content is insufficient or stale and live web access is available, inspect the live page rather than inventing missing information.`,
+      inputSchema: {
+        site_id: z.string().min(1).describe("Site id"),
+        url: z.string().url().describe("Page URL"),
+      },
+      annotations: readOnly,
+    },
+    async ({ site_id, url }) => {
+      try {
+        return ok(
+          await dofolloGet(
+            `/sites/${encodeURIComponent(site_id)}/context/page`,
+            dofolloUserId,
+            { url },
+          ),
+        );
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
   server.registerTool(
     "rankmerabbit_gsc_performance",
     {
