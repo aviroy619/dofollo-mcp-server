@@ -385,6 +385,42 @@ Returns: GSC performance metrics. If GSC is not connected for the site, the API 
   );
 
   server.registerTool(
+    "rankmerabbit_generate_title",
+    {
+      title: "Generate SEO title suggestions",
+      description: `Generate RankMeRabbit AI SEO title suggestions for one crawled page.
+
+Use this when the user explicitly wants title ideas, a better SEO title, or wants RankMeRabbit to generate title suggestions for a page.
+
+This generates suggestions only. It does NOT publish or apply any change to the website.
+
+RankMeRabbit fix credits are not consumed by generation; publishing/applying fixes is handled separately.
+
+The page must already belong to the selected RankMeRabbit site.`,
+      inputSchema: {
+        site_id: z.string().min(1).describe("Site id"),
+        page_url: z.string().url().describe("Page URL to generate title suggestions for"),
+      },
+      annotations: writeTool,
+    },
+    async ({ site_id, page_url }) => {
+      const denied = requireWrite(canWrite);
+      if (denied) return denied;
+      try {
+        return ok(
+          await dofolloPost(
+            `/sites/${encodeURIComponent(site_id)}/generate/title`,
+            dofolloUserId,
+            { page_url },
+          ),
+        );
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
     "rankmerabbit_ensure_fix_session",
     {
       title: "Ensure fix session",
@@ -419,12 +455,25 @@ Returns: { session_id, created }`,
   );
 
   server.registerTool(
-    "rankmerabbit_generate_fix_proposal",
+    "rankmerabbit_create_fix_proposal",
     {
-      title: "Generate a fix proposal",
-      description: `Validate and store a proposed fix for explicit later review. This does not publish.
+      title: "Create a fix proposal",
+      description: `Create and store a proposed website fix using a replacement value that has ALREADY been determined.
 
-Supported action_type values: broken_link, h1, alt_text.
+This tool does NOT generate AI content.
+
+Use it only after:
+- the desired replacement value is already known/generated
+- the user wants that exact change prepared for review/publishing
+
+Supported action types:
+broken_link
+h1
+alt_text
+
+For title AI generation, use rankmerabbit_generate_title instead.
+
+It does not publish the change.
 
 Args:
   - site_id (string): site id
@@ -502,10 +551,16 @@ Returns: { result: "proposed" | "published" | "failed", proposal } or a not-foun
     "rankmerabbit_publish_selected_fix",
     {
       title: "Publish selected fix",
-      description: `Publish an explicitly selected proposal. This never generates a fix.
+      description: `Publish/apply an explicitly selected stored fix proposal.
 
-For proposal_id, supported proposals are broken_link, h1, and alt_text chat fix actions.
-Lifecycle fix_id publishing is not exposed because the existing MCP-safe selected-fix backend route with retry-safe credit handling does not exist yet.
+Supported proposals:
+- broken_link
+- h1
+- alt_text
+
+Publishing uses the RankMeRabbit backend's existing validation, platform delivery and retry-safe credit consumption.
+
+This tool does not generate content.
 
 Args:
   - site_id (string): site id

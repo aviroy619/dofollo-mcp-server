@@ -46,15 +46,15 @@ Read tools work with an authenticated token for the MCP resource. Write tools ad
 | `rankmerabbit_get_site_overview` | Read compact site overview context |
 | `rankmerabbit_get_page_context` | Read compact page-specific SEO context |
 | `rankmerabbit_gsc_performance` | Read GSC performance |
+| `rankmerabbit_generate_title` | Generate RankMeRabbit AI SEO title suggestions for a crawled page. Does not publish, and generation does not consume fix credits |
 | `rankmerabbit_ensure_fix_session` | Create or validate an owned chat session for fix proposals |
-| `rankmerabbit_generate_fix_proposal` | Store a proposed `broken_link`, `h1`, or `alt_text` chat fix action for review |
+| `rankmerabbit_create_fix_proposal` | Store an already-determined replacement value as a proposed `broken_link`, `h1`, or `alt_text` fix. Does not generate AI content and does not publish |
 | `rankmerabbit_get_fix_proposal` | Retrieve a stored proposal for review |
-| `rankmerabbit_publish_selected_fix` | Publish an explicitly selected proposal |
-| `rankmerabbit_revert_published_fix` | Roll back an applied proposal where the backend rollback workflow supports it |
+| `rankmerabbit_publish_selected_fix` | Publish/apply a selected stored `broken_link`, `h1`, or `alt_text` proposal. The backend handles validation, platform delivery, and retry-safe credit consumption |
+| `rankmerabbit_revert_published_fix` | Use existing backend rollback behavior where supported |
 
-Unsupported actions are not advertised as tools. Lifecycle `fix_id` publish is not exposed through
-MCP here because the backend does not yet have an MCP-safe selected-fix route that combines
-ownership checks, platform restrictions, credit charging, and retry-safe idempotency.
+Unsupported actions are not advertised as tools. Title generation is exposed, but title publishing is
+not currently exposed through MCP.
 ## Progressive Context
 
 The MCP should not retrieve all RankMeRabbit intelligence at once. Start with the site overview when business or site understanding is needed, then retrieve page-specific or specialized context only when the current task requires it.
