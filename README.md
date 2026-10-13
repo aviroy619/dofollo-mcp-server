@@ -50,6 +50,8 @@ Read tools work with an authenticated token for the MCP resource. Write tools ad
 | `rankmerabbit_ensure_fix_session` | Create or validate an owned chat session for fix proposals |
 | `rankmerabbit_create_fix_proposal` | Store an already-determined replacement value as a proposed `broken_link`, `h1`, or `alt_text` fix. Does not generate AI content and does not publish |
 | `rankmerabbit_get_fix_proposal` | Retrieve a stored proposal for review |
+| `rankmerabbit_create_internal_link_proposal` | Store an already-determined internal link with source URL, target URL, and exact anchor text. Does not publish |
+| `rankmerabbit_publish_internal_link` | Publish/apply a selected stored internal-link proposal after explicit confirmation. The backend handles validation, platform delivery, and credit/idempotency behavior |
 | `rankmerabbit_publish_selected_fix` | Publish/apply a selected stored `broken_link`, `h1`, or `alt_text` proposal. The backend handles validation, platform delivery, and retry-safe credit consumption |
 | `rankmerabbit_revert_published_fix` | Use existing backend rollback behavior where supported |
 

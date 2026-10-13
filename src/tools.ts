@@ -6,6 +6,7 @@ import { CHARACTER_LIMIT } from "./constants.js";
 type ToolResult = {
   content: { type: "text"; text: string }[];
   isError?: boolean;
+  _meta?: Record<string, unknown>;
 };
 
 /** Format a successful payload as pretty JSON text, truncating oversized responses. */
@@ -45,10 +46,45 @@ const readOnly = {
   openWorldHint: true,
 } as const;
 
+const readSecuritySchemes = [
+  {
+    type: "oauth2" as const,
+    scopes: ["rankmerabbit.read"],
+  },
+] as const;
+
+const writeSecuritySchemes = [
+  {
+    type: "oauth2" as const,
+    scopes: ["rankmerabbit.read", "rankmerabbit.write"],
+  },
+] as const;
+
+const readToolSecurity = {
+  securitySchemes: readSecuritySchemes,
+  _meta: {
+    securitySchemes: readSecuritySchemes,
+  },
+} as const;
+
+const writeToolSecurity = {
+  securitySchemes: writeSecuritySchemes,
+  _meta: {
+    securitySchemes: writeSecuritySchemes,
+  },
+} as const;
+
 const writeTool = {
   readOnlyHint: false,
   destructiveHint: false,
   idempotentHint: false,
+  openWorldHint: true,
+} as const;
+
+const idempotentWriteTool = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
   openWorldHint: true,
 } as const;
 
@@ -78,6 +114,11 @@ function requireWrite(canWrite: boolean): ToolResult | undefined {
       },
     ],
     isError: true,
+    _meta: {
+      "mcp/www_authenticate": [
+        'Bearer resource_metadata="https://mcp.rankmerabbit.com/.well-known/oauth-protected-resource/mcp", error="insufficient_scope", error_description="The rankmerabbit.write scope is required for this action", scope="rankmerabbit.write"',
+      ],
+    },
   };
 }
 
@@ -113,6 +154,7 @@ Args: none.
 
 Returns: an array of sites, each including at least an id and url/domain plus summary fields.`,
       inputSchema: {},
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async () => {
@@ -137,6 +179,7 @@ Returns: prioritized pages with priority scores and the issues driving each scor
       inputSchema: {
         site_id: z.string().min(1).describe("Site id from rankmerabbit_list_sites"),
       },
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async ({ site_id }) => {
@@ -174,6 +217,7 @@ Returns: an array of issues with type, severity, affected URL, and status.`,
         limit: z.number().int().min(1).max(500).optional().describe("Max rows to return"),
         offset: z.number().int().min(0).optional().describe("Pagination offset"),
       },
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async ({ site_id, status, type, limit, offset }) => {
@@ -207,6 +251,7 @@ Returns: the audit findings for that category — affected pages and details.`,
         site_id: z.string().min(1).describe("Site id"),
         type: z.enum(AUDIT_TYPES).describe(`Audit category: ${AUDIT_TYPES.join(" | ")}`),
       },
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async ({ site_id, type }) => {
@@ -237,6 +282,7 @@ Returns: crawled pages with URL and per-page metadata.`,
         limit: z.number().int().min(1).max(500).optional().describe("Max rows to return"),
         offset: z.number().int().min(0).optional().describe("Pagination offset"),
       },
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async ({ site_id, limit, offset }) => {
@@ -270,6 +316,7 @@ Returns: detailed issues, content signals, and fix status for that page.`,
         url: z.string().url().optional().describe("Page URL"),
         page_id: z.string().optional().describe("Page id (alternative to url)"),
       },
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async ({ site_id, url, page_id }) => {
@@ -300,6 +347,7 @@ If RankMeRabbit's stored context is insufficient, incomplete or potentially stal
       inputSchema: {
         site_id: z.string().min(1).describe("Site id"),
       },
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async ({ site_id }) => {
@@ -331,6 +379,7 @@ If stored content is insufficient or stale and live web access is available, ins
         site_id: z.string().min(1).describe("Site id"),
         url: z.string().url().describe("Page URL"),
       },
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async ({ site_id, url }) => {
@@ -364,6 +413,7 @@ Returns: GSC performance metrics. If GSC is not connected for the site, the API 
         start_date: z.string().optional().describe("Start date, YYYY-MM-DD"),
         end_date: z.string().optional().describe("End date, YYYY-MM-DD"),
       },
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async ({ site_id, start_date, end_date }) => {
@@ -401,6 +451,7 @@ The page must already belong to the selected RankMeRabbit site.`,
         site_id: z.string().min(1).describe("Site id"),
         page_url: z.string().url().describe("Page URL to generate title suggestions for"),
       },
+      ...writeToolSecurity,
       annotations: writeTool,
     },
     async ({ site_id, page_url }) => {
@@ -435,6 +486,7 @@ Returns: { session_id, created }`,
         site_id: z.string().min(1),
         session_id: z.string().optional(),
       },
+      ...writeToolSecurity,
       annotations: writeTool,
     },
     async ({ site_id, session_id }) => {
@@ -494,6 +546,7 @@ Returns: { result: "proposed" | "failed", proposal_id, action }`,
         broken_url: z.string().optional(),
         image_src: z.string().optional(),
       },
+      ...writeToolSecurity,
       annotations: writeTool,
     },
     async ({ site_id, session_id, action_type, page_url, new_value, broken_url, image_src }) => {
@@ -527,6 +580,7 @@ Returns: { result: "proposed" | "published" | "failed", proposal } or a not-foun
         site_id: z.string().min(1),
         proposal_id: z.string().min(1),
       },
+      ...readToolSecurity,
       annotations: readOnly,
     },
     async ({ site_id, proposal_id }) => {
@@ -541,6 +595,91 @@ Returns: { result: "proposed" | "published" | "failed", proposal } or a not-foun
           throw new DofolloError(404, "fix proposal not found for this site");
         }
         return ok({ result: proposalResult(proposal.status), proposal });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "rankmerabbit_create_internal_link_proposal",
+    {
+      title: "Create an internal-link proposal",
+      description: `Create and store an internal-link proposal using exact values already chosen by the user. Does not publish.
+
+Use it only after the user has chosen:
+- the source URL where the link should be added
+- the target URL the link should point to
+- the exact anchor text
+
+Creating a proposal must not publish or apply the link.
+
+Args:
+  - site_id (string): site id
+  - source_url (URL): source page where the internal link should be added
+  - target_url (URL): target page the link should point to
+  - anchor_text (string): exact anchor text chosen by the user
+  - context (string, optional): nearby text or placement context
+
+Returns: { result: "proposed", fix_id, source_url, target_url, anchor_text, ... }`,
+      inputSchema: {
+        site_id: z.string().min(1),
+        source_url: z.string().url(),
+        target_url: z.string().url(),
+        anchor_text: z.string().min(1),
+        context: z.string().optional(),
+      },
+      ...writeToolSecurity,
+      annotations: idempotentWriteTool,
+    },
+    async ({ site_id, source_url, target_url, anchor_text, context }) => {
+      const denied = requireWrite(canWrite);
+      if (denied) return denied;
+      try {
+        const data = await dofolloPost<{ result?: string; fix_id?: string }>(
+          `/sites/${encodeURIComponent(site_id)}/internal-link-fixes`,
+          dofolloUserId,
+          { source_url, target_url, anchor_text, context },
+        );
+        return ok({ result: data.result || "proposed", ...data });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
+  server.registerTool(
+    "rankmerabbit_publish_internal_link",
+    {
+      title: "Publish an internal-link proposal",
+      description: `Publish/apply an explicitly selected stored internal-link proposal. Never generates or changes the link details.
+
+Before invoking this tool, ChatGPT should show the source URL, target URL, and anchor text to the user and obtain explicit confirmation to publish.
+
+Do not claim the link is live if the backend returns queued or approved; say it is queued for publishing. If the platform is unsupported, surface the backend error instead of pretending it published.
+
+Args:
+  - site_id (string): site id
+  - fix_id (string): internal-link proposal id to publish
+
+Returns: { result: "queued" | "published" | "failed", ... }`,
+      inputSchema: {
+        site_id: z.string().min(1),
+        fix_id: z.string().min(1),
+      },
+      ...writeToolSecurity,
+      annotations: publishingWriteTool,
+    },
+    async ({ site_id, fix_id }) => {
+      const denied = requireWrite(canWrite);
+      if (denied) return denied;
+      try {
+        const data = await dofolloPost<{ result?: string; status?: string }>(
+          `/sites/${encodeURIComponent(site_id)}/internal-link-fixes/${encodeURIComponent(fix_id)}/publish`,
+          dofolloUserId,
+          {},
+        );
+        return ok({ result: data.result || proposalResult(data.status), fix_id, ...data });
       } catch (err) {
         return fail(err);
       }
@@ -571,6 +710,7 @@ Returns: { result: "queued" | "published" | "failed", ... }`,
         site_id: z.string().min(1),
         proposal_id: z.string().min(1),
       },
+      ...writeToolSecurity,
       annotations: publishingWriteTool,
     },
     async ({ site_id, proposal_id }) => {
@@ -607,6 +747,7 @@ Returns: { result: "reverted" | "failed" | "unsupported", proposal_id, action }`
         site_id: z.string().min(1),
         proposal_id: z.string().min(1),
       },
+      ...writeToolSecurity,
       annotations: destructiveWriteTool,
     },
     async ({ site_id, proposal_id }) => {
