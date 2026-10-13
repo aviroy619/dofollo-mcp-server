@@ -19,7 +19,7 @@ const protectedResourceMetadata = {
 };
 
 const wwwAuthenticateHeader =
-  'Bearer realm="OAuth", resource_metadata="https://mcp.rankmerabbit.com/.well-known/oauth-protected-resource/mcp"';
+  'Bearer realm="OAuth", resource_metadata="https://mcp.rankmerabbit.com/.well-known/oauth-protected-resource/mcp", scope="rankmerabbit:read rankmerabbit:write"';
 
 type TokenClaims = {
   sub?: string;
