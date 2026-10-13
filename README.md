@@ -26,10 +26,10 @@ The protected resource metadata advertises:
 
 - authorization server: `https://dofollo.scalekit.dev/resources/res_130805237014331910`
 - resource: `MCP_RESOURCE`, normally `https://mcp.rankmerabbit.com/mcp`
-- scopes: `rankmerabbit.read`, `rankmerabbit.write`
+- scopes: `rankmerabbit:read`, `rankmerabbit:write`
 
 Read tools work with an authenticated token for the MCP resource. Write tools additionally require
-`rankmerabbit.write` in either the JWT `scope` or `scp` claim.
+`rankmerabbit:write` in either the JWT `scope` or `scp` claim.
 
 ## Tools
 

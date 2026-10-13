@@ -49,14 +49,14 @@ const readOnly = {
 const readSecuritySchemes = [
   {
     type: "oauth2" as const,
-    scopes: ["rankmerabbit.read"],
+    scopes: ["rankmerabbit:read"],
   },
 ] as const;
 
 const writeSecuritySchemes = [
   {
     type: "oauth2" as const,
-    scopes: ["rankmerabbit.read", "rankmerabbit.write"],
+    scopes: ["rankmerabbit:read", "rankmerabbit:write"],
   },
 ] as const;
 
@@ -110,13 +110,13 @@ function requireWrite(canWrite: boolean): ToolResult | undefined {
     content: [
       {
         type: "text",
-        text: "Error 403: this OAuth token is missing the rankmerabbit.write scope.",
+        text: "Error 403: this OAuth token is missing the rankmerabbit:write scope.",
       },
     ],
     isError: true,
     _meta: {
       "mcp/www_authenticate": [
-        'Bearer resource_metadata="https://mcp.rankmerabbit.com/.well-known/oauth-protected-resource/mcp", error="insufficient_scope", error_description="The rankmerabbit.write scope is required for this action", scope="rankmerabbit.write"',
+        'Bearer resource_metadata="https://mcp.rankmerabbit.com/.well-known/oauth-protected-resource/mcp", error="insufficient_scope", error_description="The rankmerabbit:write scope is required for this action", scope="rankmerabbit:write"',
       ],
     },
   };

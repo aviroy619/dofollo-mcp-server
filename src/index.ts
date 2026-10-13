@@ -15,7 +15,7 @@ const protectedResourceMetadata = {
   bearer_methods_supported: ["header"],
   resource: process.env.MCP_RESOURCE!,
   resource_documentation: "https://mcp.rankmerabbit.com/mcp/docs",
-  scopes_supported: ["rankmerabbit.read", "rankmerabbit.write"],
+  scopes_supported: ["rankmerabbit:read", "rankmerabbit:write"],
 };
 
 const wwwAuthenticateHeader =
@@ -76,7 +76,7 @@ function claimsHaveWriteScope(claims: TokenClaims | boolean): boolean {
   }
   const scope = typeof claims.scope === "string" ? claims.scope.split(/\s+/) : [];
   const scp = Array.isArray(claims.scp) ? claims.scp : typeof claims.scp === "string" ? claims.scp.split(/\s+/) : [];
-  return new Set([...scope, ...scp]).has("rankmerabbit.write");
+  return new Set([...scope, ...scp]).has("rankmerabbit:write");
 }
 
 function buildServer(dofolloUserId: string, canWrite: boolean): McpServer {
