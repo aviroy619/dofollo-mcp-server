@@ -122,7 +122,7 @@ function requireWrite(canWrite: boolean): ToolResult | undefined {
   };
 }
 
-const PROPOSAL_ACTION_TYPES = ["broken_link", "h1", "alt_text"] as const;
+const PROPOSAL_ACTION_TYPES = ["title", "h1", "alt_text", "broken_link"] as const;
 
 function proposalResult(status: string | undefined): string {
   switch (status) {
@@ -442,7 +442,7 @@ Returns: GSC performance metrics. If GSC is not connected for the site, the API 
 
 Use this when the user explicitly wants title ideas, a better SEO title, or wants RankMeRabbit to generate title suggestions for a page.
 
-This generates suggestions only. It does NOT publish or apply any change to the website.
+This generates suggestions only. It does NOT publish or apply any change to the website. To publish a chosen title, call rankmerabbit_create_fix_proposal with action_type "title", then rankmerabbit_publish_selected_fix.
 
 RankMeRabbit fix credits are not consumed by generation; publishing/applying fixes is handled separately.
 
@@ -519,20 +519,21 @@ Use it only after:
 - the user wants that exact change prepared for review/publishing
 
 Supported action types:
-broken_link
+title      (SEO <title> tag; new_value = the full new title)
 h1
 alt_text
+broken_link
 
-For title AI generation, use rankmerabbit_generate_title instead.
+To get AI title ideas first, call rankmerabbit_generate_title, let the user pick one, then create a "title" proposal with that exact text.
 
 It does not publish the change.
 
 Args:
   - site_id (string): site id
   - session_id (string): existing RankMeRabbit chat session id
-  - action_type (enum): broken_link | h1 | alt_text
+  - action_type (enum): title | h1 | alt_text | broken_link
   - page_url (string): affected page URL
-  - new_value (string): proposed replacement value
+  - new_value (string): proposed replacement value (for title: the full new <title>, ideally 30–65 characters)
   - broken_url (string, required for broken_link): URL being replaced
   - image_src (string, required for alt_text): image URL/source
 
@@ -693,9 +694,10 @@ Returns: { result: "queued" | "published" | "failed", ... }`,
       description: `Publish/apply an explicitly selected stored fix proposal.
 
 Supported proposals:
-- broken_link
+- title
 - h1
 - alt_text
+- broken_link
 
 Publishing uses the RankMeRabbit backend's existing validation, platform delivery and retry-safe credit consumption.
 
@@ -736,7 +738,7 @@ Returns: { result: "queued" | "published" | "failed", ... }`,
       title: "Revert a published fix",
       description: `Revert a published MCP proposal only where the existing backend rollback workflow supports it.
 
-Supported: proposal_id for broken_link, h1, and alt_text chat fix actions after they are applied and have a previous value. Lifecycle unpublish/revert is not exposed here because those paths do not all revert live content.
+Supported: proposal_id for title, h1, broken_link, and alt_text chat fix actions after they are applied and have a previous value. Lifecycle unpublish/revert is not exposed here because those paths do not all revert live content.
 
 Args:
   - site_id (string): site id
