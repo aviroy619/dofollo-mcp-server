@@ -124,6 +124,41 @@ function requireWrite(canWrite: boolean): ToolResult | undefined {
 
 const PROPOSAL_ACTION_TYPES = ["title", "h1", "alt_text", "broken_link"] as const;
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * On plugin-managed sites a published fix stops at "approved" until the site's
+ * plugin pulls and applies it. Poll the proposal briefly so ChatGPT can report
+ * the real outcome instead of a bare "queued".
+ */
+async function waitForProposalOutcome(
+  site_id: string,
+  proposal_id: string,
+  dofolloUserId: string,
+  maxWaitMs = 45000,
+  intervalMs = 5000,
+): Promise<{ id?: string; status?: string } | undefined> {
+  const deadline = Date.now() + maxWaitMs;
+  let latest: { id?: string; status?: string } | undefined;
+  while (Date.now() < deadline) {
+    await sleep(intervalMs);
+    try {
+      const data = await dofolloGet<{ actions?: Array<{ id?: string; status?: string }> }>(
+        `/sites/${encodeURIComponent(site_id)}/fix-actions`,
+        dofolloUserId,
+        { site_id },
+      );
+      latest = data.actions?.find((action) => action.id === proposal_id) ?? latest;
+      if (latest?.status && latest.status !== "approved") {
+        return latest;
+      }
+    } catch {
+      return latest;
+    }
+  }
+  return latest;
+}
+
 function proposalResult(status: string | undefined): string {
   switch (status) {
     case "approved":
@@ -701,6 +736,8 @@ Supported proposals:
 
 Publishing uses the RankMeRabbit backend's existing validation, platform delivery and retry-safe credit consumption.
 
+On sites connected through the WordPress plugin (and similar connectors) the fix is queued and the plugin applies it on its next sync, usually within a few minutes. This tool waits up to ~45 seconds for that. If the result is still "queued", tell the user it is queued (not failed) and offer to check again with rankmerabbit_get_fix_proposal.
+
 This tool does not generate content.
 
 Args:
@@ -725,7 +762,19 @@ Returns: { result: "queued" | "published" | "failed", ... }`,
           {},
           { site_id },
         );
-        return ok({ result: proposalResult(data.action?.status), proposal_id, ...data });
+        let status = data.action?.status;
+        if (status === "approved") {
+          const latest = await waitForProposalOutcome(site_id, proposal_id, dofolloUserId);
+          if (latest?.status) status = latest.status;
+        }
+        const result = proposalResult(status);
+        const note =
+          result === "published"
+            ? "The change is live on the site."
+            : result === "queued"
+              ? "Queued: the site's plugin will apply it on its next sync (usually within a few minutes). Call rankmerabbit_get_fix_proposal to confirm."
+              : undefined;
+        return ok({ result, proposal_id, note, ...data, action: { ...data.action, status } });
       } catch (err) {
         return fail(err);
       }
