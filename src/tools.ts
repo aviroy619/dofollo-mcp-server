@@ -2,9 +2,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { dofolloGet, dofolloPost, DofolloError } from "./services/dofollo.js";
 import { CHARACTER_LIMIT } from "./constants.js";
+import { cardToolMeta, registerCardResources, type Card } from "./cards.js";
+import { registerInsightTools } from "./insights.js";
+import { TERMS } from "./terms.js";
 
 type ToolResult = {
   content: { type: "text"; text: string }[];
+  structuredContent?: Record<string, unknown>;
   isError?: boolean;
   _meta?: Record<string, unknown>;
 };
@@ -74,6 +78,17 @@ const writeToolSecurity = {
   },
 } as const;
 
+/** Same as above, plus the card widget for ChatGPT / MCP Apps hosts. */
+const readCardSecurity = {
+  securitySchemes: readSecuritySchemes,
+  _meta: { securitySchemes: readSecuritySchemes, ...cardToolMeta },
+} as const;
+
+const writeCardSecurity = {
+  securitySchemes: writeSecuritySchemes,
+  _meta: { securitySchemes: writeSecuritySchemes, ...cardToolMeta },
+} as const;
+
 const writeTool = {
   readOnlyHint: false,
   destructiveHint: false,
@@ -126,6 +141,148 @@ const PROPOSAL_ACTION_TYPES = ["title", "h1", "alt_text", "broken_link"] as cons
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+type FixAction = Record<string, unknown> & { id?: string; status?: string };
+
+const PRESENTATION_NOTE =
+  "Show the table below to the user exactly as given. Do not mention internal fields (credits, publish flags, ids other than the proposal id).";
+
+const FIELD_LABELS: Record<string, string> = {
+  title: "SEO title",
+  h1: "H1 heading",
+  alt_text: "Image alt text",
+  broken_link: "Broken link",
+};
+
+function pick(action: FixAction | undefined, ...keys: string[]): string {
+  if (!action) return "";
+  for (const key of keys) {
+    const value = action[key];
+    if (typeof value === "string" && value.trim() !== "") return value.trim();
+  }
+  return "";
+}
+
+function cell(value: string): string {
+  return (value || "—").replace(/\|/g, "\\|").replace(/\s+/g, " ");
+}
+
+function pagePath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname || "/";
+  } catch {
+    return url;
+  }
+}
+
+function statusLabel(status: string | undefined, error: string): string {
+  switch (status) {
+    case "proposed":
+      return "📝 Proposed (not live yet)";
+    case "approved":
+    case "rollback_pending":
+      return "⏳ Queued — the site's plugin applies it on its next sync";
+    case "applied":
+      return "✅ Live";
+    case "rolled_back":
+      return "↩️ Reverted";
+    case "failed":
+      return "❌ Failed" + (error ? `: ${error}` : "");
+    default:
+      return status || "Unknown";
+  }
+}
+
+/** A compact, user-facing result: a Fix status card (widget) + markdown table + the proposal id. */
+function fixTable(action: FixAction | undefined, statusOverride?: string, extra?: string): ToolResult {
+  const status = statusOverride ?? action?.status;
+  const type = pick(action, "action_type", "actionType");
+  const change = FIELD_LABELS[type] ?? (type || "Fix");
+  const pageUrl = pick(action, "page_url", "pageUrl");
+  const page = pagePath(pageUrl);
+  const before = type === "broken_link" ? pick(action, "broken_url", "old_value", "oldValue") : pick(action, "old_value", "oldValue");
+  const after = pick(action, "new_value", "newValue");
+  const error = pick(action, "error_message", "errorMessage");
+  const id = pick(action, "id", "_id");
+  const siteId = pick(action, "site_id", "siteId");
+  const lines = [
+    PRESENTATION_NOTE,
+    "",
+    "| Page | Change | Before | After | Status |",
+    "|---|---|---|---|---|",
+    `| ${cell(page)} | ${cell(change)} | ${cell(before)} | ${cell(after)} | ${cell(statusLabel(status, error))} |`,
+  ];
+  if (id) lines.push("", `Proposal id: ${id} (use it to check status or revert).`);
+  if (extra) lines.push("", extra);
+
+  const actions: { label: string; prompt: string }[] = [];
+  if (status === "proposed" && id) actions.push({ label: "Publish", prompt: `Publish fix proposal ${id}${siteId ? ` on site ${siteId}` : ""}.` });
+  if ((status === "approved" || status === "rollback_pending") && id) actions.push({ label: "Check again", prompt: `Check the status of fix proposal ${id}${siteId ? ` on site ${siteId}` : ""}.` });
+  if (pageUrl) actions.push({ label: "What's still open on this page", prompt: `Give me the page report for ${pageUrl}.` });
+  if (status === "applied" && id) actions.push({ label: TERMS.revert, prompt: `Revert fix proposal ${id}${siteId ? ` on site ${siteId}` : ""}.` });
+  actions.push({ label: "Next page to fix", prompt: "Which page should I fix next? Show pages page-wise." });
+
+  const card: Card = {
+    kind: "fix_status",
+    title: TERMS.fixStatus,
+    subtitle: statusLabel(status, error),
+    sections: [
+      {
+        title: change,
+        rows: [
+          { title: page, url: pageUrl, meta: `Before: ${before || "—"}` },
+          { title: "After", meta: after || "—" },
+        ],
+      },
+    ],
+    actions,
+    note: extra,
+  };
+  return {
+    content: [{ type: "text", text: lines.join("\n") }],
+    structuredContent: { card },
+    isError: status === "failed",
+  };
+}
+
+/** Internal-link proposal/publish result as a card + table. */
+function linkTable(data: Record<string, unknown>, result: string, fixId: string | undefined, siteId: string): ToolResult {
+  const s = (k: string) => (typeof data[k] === "string" ? (data[k] as string) : "");
+  const source = s("source_url");
+  const target = s("target_url");
+  const anchor = s("anchor_text");
+  const label =
+    result === "published" ? "✅ Live" : result === "queued" ? "⏳ Queued — the site's plugin applies it on its next sync" : result === "proposed" ? "📝 Proposed (not live yet)" : result === "failed" ? "❌ Failed" + (s("error") ? `: ${s("error")}` : "") : result;
+  const card: Card = {
+    kind: "link_status",
+    title: "Internal link",
+    subtitle: label,
+    sections: [
+      {
+        title: "Link",
+        rows: [
+          { title: `On: ${pagePath(source) || "—"}`, url: source, meta: anchor ? `Anchor: "${anchor}"` : undefined },
+          { title: `To: ${pagePath(target) || "—"}`, url: target },
+        ],
+      },
+    ],
+    actions: [
+      ...(result === "proposed" && fixId ? [{ label: "Publish", prompt: `Publish internal link proposal ${fixId} on site ${siteId}.` }] : []),
+      ...(target ? [{ label: "What's still open on this page", prompt: `Give me the page report for ${target}.` }] : []),
+      { label: TERMS.hiddenGems, prompt: "Show my hidden gems with link suggestions." },
+    ],
+  };
+  const text = [
+    PRESENTATION_NOTE,
+    "",
+    "| Link on | Points to | Anchor | Status |",
+    "|---|---|---|---|",
+    `| ${cell(pagePath(source))} | ${cell(pagePath(target))} | ${cell(anchor)} | ${cell(label)} |`,
+    ...(fixId ? ["", `Proposal id: ${fixId}`] : []),
+  ].join("\n");
+  return { content: [{ type: "text", text }], structuredContent: { card }, isError: result === "failed" };
+}
+
 /**
  * On plugin-managed sites a published fix stops at "approved" until the site's
  * plugin pulls and applies it. Poll the proposal briefly so ChatGPT can report
@@ -137,13 +294,13 @@ async function waitForProposalOutcome(
   dofolloUserId: string,
   maxWaitMs = 45000,
   intervalMs = 5000,
-): Promise<{ id?: string; status?: string } | undefined> {
+): Promise<FixAction | undefined> {
   const deadline = Date.now() + maxWaitMs;
-  let latest: { id?: string; status?: string } | undefined;
+  let latest: FixAction | undefined;
   while (Date.now() < deadline) {
     await sleep(intervalMs);
     try {
-      const data = await dofolloGet<{ actions?: Array<{ id?: string; status?: string }> }>(
+      const data = await dofolloGet<{ actions?: FixAction[] }>(
         `/sites/${encodeURIComponent(site_id)}/fix-actions`,
         dofolloUserId,
         { site_id },
@@ -179,6 +336,9 @@ function proposalResult(status: string | undefined): string {
 
 /** Register every RankMeRabbit tool on the given server, bound to the caller's RankMeRabbit user id. */
 export function registerTools(server: McpServer, dofolloUserId: string, canWrite = false): void {
+  registerCardResources(server);
+  registerInsightTools(server, dofolloUserId);
+
   server.registerTool(
     "rankmerabbit_list_sites",
     {
@@ -205,7 +365,7 @@ Returns: an array of sites, each including at least an id and url/domain plus su
     "rankmerabbit_pages_needing_work",
     {
       title: "Pages needing work",
-      description: `Get the prioritized list of pages that most need SEO work for a site, ranked by RankMeRabbit's analysis-priority scoring. This is the tool to use for "which pages need work?".
+      description: `Get the prioritized list of pages that most need SEO work for a site, ranked by RankMeRabbit's analysis-priority scoring. This is the tool to use for "which pages need work?". Present results page-wise (one row per page with its issues), then offer rankmerabbit_page_report for the page the user picks.
 
 Args:
   - site_id (string): a site id from rankmerabbit_list_sites
@@ -582,19 +742,23 @@ Returns: { result: "proposed" | "failed", proposal_id, action }`,
         broken_url: z.string().optional(),
         image_src: z.string().optional(),
       },
-      ...writeToolSecurity,
+      ...writeCardSecurity,
       annotations: writeTool,
     },
     async ({ site_id, session_id, action_type, page_url, new_value, broken_url, image_src }) => {
       const denied = requireWrite(canWrite);
       if (denied) return denied;
       try {
-        const data = await dofolloPost<{ action?: { id?: string; status?: string } }>(
+        const data = await dofolloPost<{ action?: FixAction }>(
           `/sites/${encodeURIComponent(site_id)}/fix-actions`,
           dofolloUserId,
           { site_id, session_id, action_type, page_url, new_value, broken_url, image_src },
         );
-        return ok({ result: proposalResult(data.action?.status), proposal_id: data.action?.id, ...data });
+        return fixTable(
+          data.action,
+          undefined,
+          data.action?.status === "proposed" ? "Ask the user to confirm before publishing with rankmerabbit_publish_selected_fix." : undefined,
+        );
       } catch (err) {
         return fail(err);
       }
@@ -616,12 +780,12 @@ Returns: { result: "proposed" | "published" | "failed", proposal } or a not-foun
         site_id: z.string().min(1),
         proposal_id: z.string().min(1),
       },
-      ...readToolSecurity,
+      ...readCardSecurity,
       annotations: readOnly,
     },
     async ({ site_id, proposal_id }) => {
       try {
-        const data = await dofolloGet<{ actions?: Array<{ id?: string; status?: string }> }>(
+        const data = await dofolloGet<{ actions?: FixAction[] }>(
           `/sites/${encodeURIComponent(site_id)}/fix-actions`,
           dofolloUserId,
           { site_id },
@@ -630,7 +794,7 @@ Returns: { result: "proposed" | "published" | "failed", proposal } or a not-foun
         if (!proposal) {
           throw new DofolloError(404, "fix proposal not found for this site");
         }
-        return ok({ result: proposalResult(proposal.status), proposal });
+        return fixTable(proposal);
       } catch (err) {
         return fail(err);
       }
@@ -665,7 +829,7 @@ Returns: { result: "proposed", fix_id, source_url, target_url, anchor_text, ... 
         anchor_text: z.string().min(1),
         context: z.string().optional(),
       },
-      ...writeToolSecurity,
+      ...writeCardSecurity,
       annotations: idempotentWriteTool,
     },
     async ({ site_id, source_url, target_url, anchor_text, context }) => {
@@ -677,7 +841,12 @@ Returns: { result: "proposed", fix_id, source_url, target_url, anchor_text, ... 
           dofolloUserId,
           { source_url, target_url, anchor_text, context },
         );
-        return ok({ result: data.result || "proposed", ...data });
+        return linkTable(
+          { source_url, target_url, anchor_text, ...data },
+          data.result || "proposed",
+          data.fix_id,
+          site_id,
+        );
       } catch (err) {
         return fail(err);
       }
@@ -703,7 +872,7 @@ Returns: { result: "queued" | "published" | "failed", ... }`,
         site_id: z.string().min(1),
         fix_id: z.string().min(1),
       },
-      ...writeToolSecurity,
+      ...writeCardSecurity,
       annotations: publishingWriteTool,
     },
     async ({ site_id, fix_id }) => {
@@ -715,7 +884,7 @@ Returns: { result: "queued" | "published" | "failed", ... }`,
           dofolloUserId,
           {},
         );
-        return ok({ result: data.result || proposalResult(data.status), fix_id, ...data });
+        return linkTable(data as Record<string, unknown>, data.result || proposalResult(data.status), fix_id, site_id);
       } catch (err) {
         return fail(err);
       }
@@ -749,32 +918,30 @@ Returns: { result: "queued" | "published" | "failed", ... }`,
         site_id: z.string().min(1),
         proposal_id: z.string().min(1),
       },
-      ...writeToolSecurity,
+      ...writeCardSecurity,
       annotations: publishingWriteTool,
     },
     async ({ site_id, proposal_id }) => {
       const denied = requireWrite(canWrite);
       if (denied) return denied;
       try {
-        const data = await dofolloPost<{ action?: { id?: string; status?: string } }>(
+        const data = await dofolloPost<{ action?: FixAction }>(
           `/sites/${encodeURIComponent(site_id)}/fix-actions/${encodeURIComponent(proposal_id)}/publish`,
           dofolloUserId,
           {},
           { site_id },
         );
-        let status = data.action?.status;
-        if (status === "approved") {
-          const latest = await waitForProposalOutcome(site_id, proposal_id, dofolloUserId);
-          if (latest?.status) status = latest.status;
+        let action = data.action;
+        if (action?.status === "approved") {
+          action = (await waitForProposalOutcome(site_id, proposal_id, dofolloUserId)) ?? action;
         }
-        const result = proposalResult(status);
-        const note =
-          result === "published"
-            ? "The change is live on the site."
-            : result === "queued"
-              ? "Queued: the site's plugin will apply it on its next sync (usually within a few minutes). Call rankmerabbit_get_fix_proposal to confirm."
-              : undefined;
-        return ok({ result, proposal_id, note, ...data, action: { ...data.action, status } });
+        return fixTable(
+          action,
+          undefined,
+          action?.status === "approved"
+            ? "Not failed — it is queued. Offer to check again in a minute with rankmerabbit_get_fix_proposal."
+            : undefined,
+        );
       } catch (err) {
         return fail(err);
       }
@@ -798,20 +965,20 @@ Returns: { result: "reverted" | "failed" | "unsupported", proposal_id, action }`
         site_id: z.string().min(1),
         proposal_id: z.string().min(1),
       },
-      ...writeToolSecurity,
+      ...writeCardSecurity,
       annotations: destructiveWriteTool,
     },
     async ({ site_id, proposal_id }) => {
       const denied = requireWrite(canWrite);
       if (denied) return denied;
       try {
-        const data = await dofolloPost<{ action?: { id?: string; status?: string } }>(
+        const data = await dofolloPost<{ action?: FixAction }>(
           `/sites/${encodeURIComponent(site_id)}/fix-actions/${encodeURIComponent(proposal_id)}/revert`,
           dofolloUserId,
           {},
           { site_id },
         );
-        return ok({ result: proposalResult(data.action?.status), proposal_id, ...data });
+        return fixTable(data.action);
       } catch (err) {
         return fail(err);
       }
