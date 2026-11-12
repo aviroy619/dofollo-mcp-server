@@ -6,7 +6,7 @@
 export const TERMS = {
   // Sections / cards
   siteStatus: "Site status",
-  traffic: "Google traffic",
+  traffic: "Organic traffic",
   hiddenGems: "Hidden gems",
   orphanHighPotential: "Orphan pages with impressions",
   pagesGainingTraffic: "Pages gaining traffic",

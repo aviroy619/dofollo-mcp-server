@@ -235,7 +235,7 @@ export function registerInsightTools(server: McpServer, userId: string): void {
     "rankmerabbit_site_status",
     {
       title: TERMS.siteStatus,
-      description: `One-glance status of a site: Google traffic (clicks, impressions, avg position, ranking keywords — change since the first crawl), issues fixed vs open, the top ${TERMS.hiddenGems} and ${TERMS.orphanHighPotential}.
+      description: `One-glance status of a site: organic traffic (clicks, impressions, avg position, ranking keywords — change since the first crawl), issues fixed vs open, the top ${TERMS.hiddenGems} and ${TERMS.orphanHighPotential}.
 Use for "how is my site doing?", "status", "what should I do next?". Shows a card with buttons.`,
       inputSchema: { site_id: z.string().min(1).describe("Site id from rankmerabbit_list_sites") },
       ...base,
@@ -281,7 +281,7 @@ Use for "how is my site doing?", "status", "what should I do next?". Shows a car
           ],
           actions: [
             { label: "Pages to fix", prompt: "Which pages on this site need work first? Show them page-wise." },
-            { label: TERMS.traffic, prompt: "Show my Google traffic report." },
+            { label: TERMS.traffic, prompt: "Show my organic traffic report." },
             { label: TERMS.hiddenGems, prompt: "Show my hidden gems with link suggestions." },
           ],
         };
@@ -297,7 +297,7 @@ Use for "how is my site doing?", "status", "what should I do next?". Shows a car
     "rankmerabbit_traffic_report",
     {
       title: TERMS.traffic,
-      description: `Google traffic report: totals, ${TERMS.pagesGainingTraffic}, ${TERMS.pagesLosingGround} (Falling Demand / Slipping hidden gems, vs previous 28 days) and ${TERMS.topPagesByTraffic} (the strongest pages to link from).
+      description: `Organic traffic report (Google Search Console): totals, ${TERMS.pagesGainingTraffic}, ${TERMS.pagesLosingGround} (Falling Demand / Slipping hidden gems, vs previous 28 days) and ${TERMS.topPagesByTraffic} (the strongest pages to link from).
 Use for any traffic, clicks, impressions, ranking or "why is traffic down/up" question.`,
       inputSchema: { site_id: z.string().min(1).describe("Site id") },
       ...base,
@@ -473,7 +473,7 @@ Use for "promising pages", "quick wins", "pages close to page 1", "what can rank
     "rankmerabbit_page_report",
     {
       title: TERMS.pageReport,
-      description: `Everything about one page in one card: Google numbers (if it is a hidden gem), open issues with Fix buttons, ${TERMS.linkStrength.toLowerCase()}, ${TERMS.linkOpportunities.toLowerCase()} with Add link buttons, and ${TERMS.incomingLinks.toLowerCase()}.
+      description: `Everything about one page in one card: organic numbers (if it is a hidden gem), open issues with Fix buttons, ${TERMS.linkStrength.toLowerCase()}, ${TERMS.linkOpportunities.toLowerCase()} with Add link buttons, and ${TERMS.incomingLinks.toLowerCase()}.
 Use whenever the user asks about one specific page, or after a fix to show what is still open on that page.`,
       inputSchema: {
         site_id: z.string().min(1).describe("Site id"),
