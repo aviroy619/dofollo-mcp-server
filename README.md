@@ -92,7 +92,7 @@ Use the internal API address when deployed beside the API container:
 
 ```yaml
 environment:
-  - DOFOLLO_API_BASE=http://dofollo-api:3001
+  - DOFOLLO_API_BASE=http://<internal-host>:<port>
   - MCP_RESOURCE=https://mcp.rankmerabbit.com/mcp
   - PORT=3000
 ```
