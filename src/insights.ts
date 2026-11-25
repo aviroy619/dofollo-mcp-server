@@ -239,6 +239,7 @@ export function registerInsightTools(server: McpServer, userId: string): void {
 Use for "how is my site doing?", "status", "what should I do next?". Shows a card with buttons.`,
       inputSchema: { site_id: z.string().min(1).describe("Site id from rankmerabbit_list_sites") },
       ...base,
+      annotations: { ...readOnly, title: TERMS.siteStatus },
     },
     async ({ site_id }) => {
       try {
@@ -301,6 +302,7 @@ Use for "how is my site doing?", "status", "what should I do next?". Shows a car
 Use for any traffic, clicks, impressions, ranking or "why is traffic down/up" question.`,
       inputSchema: { site_id: z.string().min(1).describe("Site id") },
       ...base,
+      annotations: { ...readOnly, title: TERMS.traffic },
     },
     async ({ site_id }) => {
       try {
@@ -381,6 +383,7 @@ Use for "promising pages", "quick wins", "pages close to page 1", "what can rank
         limit: z.number().int().min(1).max(10).optional().describe("Pages to return (default 5)"),
       },
       ...base,
+      annotations: { ...readOnly, title: TERMS.hiddenGems },
     },
     async ({ site_id, tag, limit }) => {
       try {
@@ -437,6 +440,7 @@ Use for "promising pages", "quick wins", "pages close to page 1", "what can rank
         limit: z.number().int().min(1).max(10).optional().describe("Pages to return (default 5)"),
       },
       ...base,
+      annotations: { ...readOnly, title: TERMS.orphanHighPotential },
     },
     async ({ site_id, limit }) => {
       try {
@@ -474,12 +478,15 @@ Use for "promising pages", "quick wins", "pages close to page 1", "what can rank
     {
       title: TERMS.pageReport,
       description: `Everything about one page in one card: organic numbers (if it is a hidden gem), open issues with Fix buttons, ${TERMS.linkStrength.toLowerCase()}, ${TERMS.linkOpportunities.toLowerCase()} with Add link buttons, and ${TERMS.incomingLinks.toLowerCase()}.
-Use whenever the user asks about one specific page, or after a fix to show what is still open on that page.`,
+Use whenever the user asks about one specific page, or after a fix to show what is still open on that page.
+
+Docs: https://rankmerabbit.com/docs/connect-rankmerabbit-to-chatgpt-with-mcp`,
       inputSchema: {
         site_id: z.string().min(1).describe("Site id"),
         url: z.string().url().describe("Page URL"),
       },
       ...base,
+      annotations: { ...readOnly, title: TERMS.pageReport },
     },
     async ({ site_id, url }) => {
       try {
@@ -571,6 +578,7 @@ Present the result as a short table (page, query, numbers, what to do), most imp
         level: z.string().optional().describe("ctr_anomalies only: page or query level (passed to the API)"),
       },
       ...plain,
+      annotations: { ...readOnly, title: "Search Console insights" },
     },
     async ({ site_id, type, level }) => {
       try {

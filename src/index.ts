@@ -80,7 +80,7 @@ function claimsHaveWriteScope(claims: TokenClaims | boolean): boolean {
 }
 
 function buildServer(dofolloUserId: string, canWrite: boolean): McpServer {
-  const server = new McpServer({ name: "rankmerabbit-mcp-server", version: "1.0.0" });
+  const server = new McpServer({ name: "RankMeRabbit", version: "1.0.0" });
   registerTools(server, dofolloUserId, canWrite);
   return server;
 }
