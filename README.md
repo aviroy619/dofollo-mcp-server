@@ -5,6 +5,12 @@ tokens with Scalekit, maps the token subject to the RankMeRabbit user id, then c
 RankMeRabbit API through `/api/mcp/v1/*` using the internal service secret. It does not expose
 tokens or secrets to MCP clients and never writes directly to Mongo or to a customer's site.
 
+## Links
+
+- Website: https://rankmerabbit.com/
+- Setup guide (ChatGPT): https://rankmerabbit.com/docs/connect-rankmerabbit-to-chatgpt-with-mcp
+- MCP server URL: `https://mcp.rankmerabbit.com/mcp`
+
 ## How It Fits
 
 ```text
