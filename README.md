@@ -48,15 +48,15 @@ Read tools work with an authenticated token for the MCP resource. Write tools ad
 | `rankmerabbit_gsc_performance` | Read GSC performance |
 | `rankmerabbit_generate_title` | Generate RankMeRabbit AI SEO title suggestions for a crawled page. Does not publish, and generation does not consume fix credits |
 | `rankmerabbit_ensure_fix_session` | Create or validate an owned chat session for fix proposals |
-| `rankmerabbit_create_fix_proposal` | Store an already-determined replacement value as a proposed `broken_link`, `h1`, or `alt_text` fix. Does not generate AI content and does not publish |
+| `rankmerabbit_create_fix_proposal` | Store an already-determined replacement value as a proposed `title`, `broken_link`, `h1`, or `alt_text` fix. Does not generate AI content and does not publish |
 | `rankmerabbit_get_fix_proposal` | Retrieve a stored proposal for review |
 | `rankmerabbit_create_internal_link_proposal` | Store an already-determined internal link with source URL, target URL, and exact anchor text. Does not publish |
 | `rankmerabbit_publish_internal_link` | Publish/apply a selected stored internal-link proposal after explicit confirmation. The backend handles validation, platform delivery, and credit/idempotency behavior |
-| `rankmerabbit_publish_selected_fix` | Publish/apply a selected stored `broken_link`, `h1`, or `alt_text` proposal. The backend handles validation, platform delivery, and retry-safe credit consumption |
+| `rankmerabbit_publish_selected_fix` | Publish/apply a selected stored `title`, `broken_link`, `h1`, or `alt_text` proposal. The backend handles validation, platform delivery, and retry-safe credit consumption |
 | `rankmerabbit_revert_published_fix` | Use existing backend rollback behavior where supported |
 
-Unsupported actions are not advertised as tools. Title generation is exposed, but title publishing is
-not currently exposed through MCP.
+Unsupported actions are not advertised as tools. Title suggestions can be stored as a title proposal
+and published with `rankmerabbit_publish_selected_fix` after user approval.
 ## Progressive Context
 
 The MCP should not retrieve all RankMeRabbit intelligence at once. Start with the site overview when business or site understanding is needed, then retrieve page-specific or specialized context only when the current task requires it.

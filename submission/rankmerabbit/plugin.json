@@ -1,0 +1,93 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "rankmerabbit",
+  "version": "1.0.0",
+  "description": "Review website SEO data and prepare supported fixes with RankMeRabbit.",
+  "author": {
+    "name": "RankMeRabbit"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "RankMeRabbit",
+        "shortDescription": "Review SEO and publish fixes",
+        "longDescription": "Connect your RankMeRabbit account to review owned websites, prioritize pages needing SEO work, inspect page reports and Search Console performance, and discover internal link opportunities. Generate SEO title suggestions and prepare title, H1, image alt text, broken link, and internal link proposals. Publish selected supported fixes after approval, check their status, and revert applied fixes where the backend supports rollback. Requires a RankMeRabbit account and the permissions and plan access needed for each workflow. RankMeRabbit plans are purchased on rankmerabbit.com.",
+        "developerName": "RankMeRabbit",
+        "category": "Business & Operations",
+        "defaultPrompt": [
+          "Which pages need SEO work first?",
+          "Show my Search Console performance.",
+          "Find internal link opportunities."
+        ],
+        "websiteURL": "https://rankmerabbit.com",
+        "supportURL": "https://rankmerabbit.com/support",
+        "privacyPolicyURL": "https://rankmerabbit.com/privacy",
+        "termsOfServiceURL": "https://rankmerabbit.com/terms",
+        "brandColor": "#0A2E22"
+      },
+      "review": {
+        "prompts": [
+          "Which websites do I have in RankMeRabbit?",
+          "Which pages on that website need SEO work first?",
+          "Show me the SEO report for that page.",
+          "Suggest a better SEO title for that page, but do not publish anything.",
+          "Prepare that exact H1 change for review. Keep it unpublished."
+        ],
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Setup: dedicated reviewer account with one owned crawled sample site. Discover owned sites; no writes.",
+              "prompt": "Which websites do I have in RankMeRabbit?",
+              "tools_triggered": "rankmerabbit_list_sites",
+              "expected_behavior": "List only sites returned for the authenticated account, preserving their IDs and domains. Do not invent sites or perform writes."
+            },
+            {
+              "description": "Setup: reviewer selects an owned site returned by the first case, with known open issues. Use its exact returned ID.",
+              "prompt": "Which pages on that website need SEO work first?",
+              "tools_triggered": "rankmerabbit_pages_needing_work",
+              "expected_behavior": "Pass the selected site ID as site_id. Show returned pages with priority and issue evidence, without publishing anything."
+            },
+            {
+              "description": "Setup: select a crawled page URL returned for the owned sample site; retain the exact site ID and URL in conversation.",
+              "prompt": "Show me the SEO report for that page.",
+              "tools_triggered": "rankmerabbit_page_report",
+              "expected_behavior": "Pass the selected site_id and url. Report returned page issues and link opportunities; distinguish missing data from zero and make no writes."
+            },
+            {
+              "description": "Setup: reviewer account has write scope and a crawled page on its owned sample site. Select the exact site ID and page URL in conversation.",
+              "prompt": "Suggest a better SEO title for that page, but do not publish anything.",
+              "tools_triggered": "rankmerabbit_generate_title",
+              "expected_behavior": "Pass the selected site_id and page_url. Present title suggestions supported by the returned result. Do not call proposal, publish, or revert tools."
+            },
+            {
+              "description": "Setup: dedicated writable sample site and selected crawled page. Record a valid existing H1 and choose an exact replacement in conversation; user has authorized preparing a proposal only.",
+              "prompt": "Prepare that exact H1 change for review. Keep it unpublished.",
+              "tools_triggered": "rankmerabbit_ensure_fix_session, rankmerabbit_create_fix_proposal",
+              "expected_behavior": "Obtain an owned session for site_id, then pass its session_id, action_type h1, selected page_url and exact chosen new_value. Report the returned proposal ID/status; do not publish or claim the site changed."
+            }
+          ],
+          "negative": [
+            {
+              "description": "No tool supports Google Ads creation. Explain the limit; do not invoke any RankMeRabbit tool or claim an ad was created.",
+              "prompt": "Create a Google Ads search campaign with a daily budget of $20."
+            },
+            {
+              "description": "No tool supports billing or payment changes. Direct the user to RankMeRabbit billing/support without invoking MCP tools or claiming cancellation.",
+              "prompt": "Cancel my RankMeRabbit subscription and refund my last payment."
+            },
+            {
+              "description": "Schema publishing is not an exposed MCP capability. Explain that limitation without calling any fix-proposal or publishing tool.",
+              "prompt": "Publish LocalBusiness JSON-LD schema to my homepage."
+            }
+          ]
+        },
+        "commerce": true,
+        "commerce_description": "Users purchase a RankMeRabbit subscription plan on rankmerabbit.com."
+      },
+      "publication": {
+        "release_notes": "Initial public plugin package for RankMeRabbit SEO reports and supported proposal, publish, and rollback workflows.",
+        "countries": []
+      }
+    }
+  }
+}

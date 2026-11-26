@@ -1,7 +1,7 @@
 {
   "name": "dofollo-mcp-server",
   "version": "1.0.0",
-  "description": "Remote MCP server exposing Dofollo SEO data (read-only) to Claude, ChatGPT, and other MCP clients.",
+  "description": "Remote MCP server exposing RankMeRabbit SEO data and supported proposal, publishing, and rollback workflows to MCP clients.",
   "type": "module",
   "bin": {
     "dofollo-mcp-server": "dist/index.js"

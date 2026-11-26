@@ -907,6 +907,8 @@ Supported proposals:
 - alt_text
 - broken_link
 
+Before invoking this tool, show the affected page, proposed change, and replacement value to the user and obtain explicit confirmation to publish.
+
 Publishing uses the RankMeRabbit backend's existing validation, platform delivery and retry-safe credit consumption.
 
 On sites connected through the WordPress plugin (and similar connectors) the fix is queued and the plugin applies it on its next sync, usually within a few minutes. This tool waits up to ~45 seconds for that. If the result is still "queued", tell the user it is queued (not failed) and offer to check again with rankmerabbit_get_fix_proposal.
